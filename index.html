@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proportion / Prevalence Meta-Analysis</title>
+<meta property="og:title" content="Proportion / Prevalence Meta-Analysis">
+<meta property="og:description" content="Offline random-effects meta-analysis of single proportions via the logit and Freeman-Tukey double-arcsine transforms, with DerSimonian-Laird pooling and a forest plot.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --c-ink:#1a1a1a; --c-ink-2:#555a5f; --c-annot:#7a8086; --c-grid:#e7e9ec;
+    --c-axis:#c2c6cb; --c-null:#9aa0a6; --c-estimate:#1a1a1a; --c-pi:#b9c2cb;
+    --t-font-serif:Georgia,'Times New Roman',serif;
+    --t-font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --accent:#2563a8; --bg:#fbfbfa; --card:#ffffff; --line:#e2e4e7; --warn:#9a6a00;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--c-ink);font-family:var(--t-font-sans);line-height:1.5}
+  header{padding:26px 22px 14px;border-bottom:1px solid var(--line);background:var(--card)}
+  h1{margin:0;font-family:var(--t-font-serif);font-size:25px;font-weight:600}
+  .sub{color:var(--c-ink-2);font-size:14px;margin-top:4px;max-width:780px}
+  main{max-width:1080px;margin:0 auto;padding:20px 22px 60px;display:grid;gap:20px;grid-template-columns:1fr;}
+  @media(min-width:880px){main{grid-template-columns:360px 1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px}
+  .card h2{margin:0 0 12px;font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--c-ink-2)}
+  label{display:block;font-size:13px;color:var(--c-ink-2);margin:10px 0 3px}
+  input,select,textarea{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:7px;font-size:14px;font-family:inherit;background:#fff}
+  textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;resize:vertical;min-height:150px;white-space:pre}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hint{font-size:12px;color:var(--c-annot);margin-top:3px}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}
+  th,td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--c-annot);border-bottom:1.5px solid var(--c-axis)}
+  td.measure{font-weight:600}
+  .muted{color:var(--c-annot)}
+  .summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .stat{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--c-annot)}
+  .stat .v{font-size:19px;font-family:var(--t-font-serif);font-weight:600;margin-top:2px}
+  .warns{margin-top:14px}
+  .warn{background:#fff8ea;border:1px solid #f0e0b8;color:var(--warn);font-size:13px;border-radius:7px;padding:8px 10px;margin-top:7px}
+  .err{background:#fdecec;border:1px solid #f3c0c0;color:#9a2020;font-size:13px;border-radius:7px;padding:8px 10px;margin-top:7px}
+  svg{width:100%;height:auto;display:block}
+  .figwrap{margin-top:6px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:7px;padding:10px 14px;font-size:14px;cursor:pointer;font-family:inherit;margin-top:14px;width:100%}
+  button.sec{background:#eef2f6;color:var(--c-ink);margin-top:8px}
+  .prov{font-size:12px;color:var(--c-annot);margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+  code{background:#f1f3f5;padding:1px 5px;border-radius:4px;font-size:12px}
+  footer{max-width:1080px;margin:0 auto;padding:0 22px 40px;color:var(--c-annot);font-size:12px}
+  .copybtn{font-size:12px}
+  fieldset{border:1px solid var(--line);border-radius:8px;padding:8px 12px 12px;margin:12px 0 0}
+  legend{font-size:12px;color:var(--c-annot);padding:0 6px}
+  .radiorow{display:flex;gap:16px;font-size:14px;color:var(--c-ink)}
+  .radiorow label{display:flex;align-items:center;gap:6px;margin:6px 0 0}
+  .radiorow input{width:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>Proportion / Prevalence Meta-Analysis</h1>
+  <div class="sub">Pool single proportions (events out of a total) across studies with DerSimonian-Laird random effects, using either the logit or the Freeman-Tukey double-arcsine transform. Back-transformed pooled proportion, <i>I</i>&sup2; and a forest plot. Fully offline &mdash; no network, no dependencies.</div>
+</header>
+<main>
+  <section class="card" id="inputs">
+    <h2>Input</h2>
+    <label for="data">Studies &mdash; one per line: <code>label, events, total</code></label>
+    <textarea id="data" spellcheck="false"></textarea>
+    <div class="hint">Events (<i>x<sub>i</sub></i>) must be a whole number between 0 and the total (<i>n<sub>i</sub></i>).</div>
+
+    <fieldset>
+      <legend>Variance-stabilising transform</legend>
+      <div class="radiorow">
+        <label><input type="radio" name="tf" value="logit" checked> Logit</label>
+        <label><input type="radio" name="tf" value="ft"> Freeman-Tukey</label>
+      </div>
+      <div class="hint" id="tfhint"></div>
+    </fieldset>
+
+    <label for="conf">CI level</label>
+    <select id="conf"><option value="0.95">95%</option><option value="0.90">90%</option><option value="0.99">99%</option></select>
+
+    <button id="run">Run meta-analysis</button>
+    <button id="ex" class="sec">Load example</button>
+
+    <div class="prov">
+      <b>Provenance.</b> Logit: <code>y<sub>i</sub>=log(p/(1&minus;p))</code>, <code>v<sub>i</sub>=1/x<sub>i</sub>+1/(n<sub>i</sub>&minus;x<sub>i</sub>)</code>; add 0.5 to both cells only when <i>x<sub>i</sub></i>=0 or <i>x<sub>i</sub></i>=<i>n<sub>i</sub></i>.
+      Freeman-Tukey: double-arcsine with <code>v<sub>i</sub>=1/(4n<sub>i</sub>+2)</code>; pooled value back-transformed with Miller's harmonic-mean inverse (metafor <code>transf.ipft.hm</code>).
+      DerSimonian-Laird &tau;&sup2;, Higgins-Thompson <i>I</i>&sup2;. Validated against metafor <code>rma(measure="PLO"/"PFT")</code>.
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Pooled estimate</h2>
+      <div class="summary" id="summary"></div>
+      <div id="errbox"></div>
+      <div class="warns" id="warns"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Per-study results</h2>
+      <table id="results"><thead><tr><th>Study</th><th>Events / Total</th><th>Proportion</th><th>95% CI</th><th>Weight</th></tr></thead><tbody></tbody></table>
+      <button id="copy" class="sec copybtn">Copy as TSV</button>
+    </div>
+
+    <div class="card figwrap" style="margin-top:20px">
+      <h2>Forest plot</h2>
+      <svg id="forest" aria-label="Forest plot of study proportions with pooled estimate"></svg>
+      <div class="hint" id="figcap"></div>
+    </div>
+  </section>
+</main>
+<footer>
+  Proportion / Prevalence Meta-Analysis &middot; single-file, offline &middot; forest rendering by the e156 chart-kit &middot;
+  MIT licensed. Verify any pooled estimate against your primary analysis before reporting.
+</footer>
+
+<script src="chartkit.js"></script>
+<script src="engine.js"></script>
+<script>
+(function(){
+  var E = window.PropMeta;
+  var $ = function(id){ return document.getElementById(id); };
+  var EXAMPLE = 'Study A, 0, 20\nStudy B, 3, 25\nStudy C, 12, 60\nStudy D, 5, 40\nStudy E, 20, 100\nStudy F, 8, 50\nStudy G, 15, 80\nStudy H, 2, 18';
+
+  function pct(p){ return (p==null||!isFinite(p)) ? '—' : (100*p).toFixed(1)+'%'; }
+  function fmt3(v){ return (v==null||!isFinite(v)) ? '—' : v.toFixed(3); }
+
+  function transform(){ var r=document.querySelector('input[name="tf"]:checked'); return r ? r.value : 'logit'; }
+  function setHint(){
+    $('tfhint').textContent = transform()==='ft'
+      ? 'Freeman-Tukey avoids a continuity correction and handles zero / total-event studies cleanly; back-transformed via the harmonic mean of the sample sizes.'
+      : 'Logit is the conventional default; studies with 0 or total events get a 0.5 correction added to both cells.';
+  }
+
+  function parse(text){
+    var studies=[], errs=[];
+    text.split(/\r?\n/).forEach(function(line, idx){
+      var t=line.trim(); if(!t) return;
+      var parts=t.split(',').map(function(s){return s.trim();});
+      if(parts.length<3){ errs.push('Line '+(idx+1)+': need "label, events, total".'); return; }
+      var label=parts.slice(0, parts.length-2).join(', ');
+      var xi=Number(parts[parts.length-2]), ni=Number(parts[parts.length-1]);
+      if(!isFinite(xi)||!isFinite(ni)){ errs.push('Line '+(idx+1)+': events / total must be numbers.'); return; }
+      studies.push({label:label||('Study '+(idx+1)), xi:xi, ni:ni});
+    });
+    return {studies:studies, errs:errs};
+  }
+
+  var lastRows=[];
+  function run(){
+    setHint();
+    var errbox=$('errbox'); errbox.innerHTML='';
+    var p=parse($('data').value);
+    var allErr=p.errs.slice();
+    if(p.studies.length){
+      var res=E.metaProp(p.studies, {transform:transform(), level:parseFloat($('conf').value)});
+      if(res.error){ allErr.push(res.error); }
+      else { showError(allErr); render(res); return; }
+    } else if(!allErr.length){ allErr.push('Enter at least two studies.'); }
+    showError(allErr);
+    // clear outputs on error
+    $('summary').innerHTML=''; $('results').querySelector('tbody').innerHTML=''; $('warns').innerHTML='';
+    var svg=$('forest'); while(svg.firstChild) svg.removeChild(svg.firstChild); $('figcap').textContent='';
+  }
+
+  function showError(errs){
+    var box=$('errbox'); box.innerHTML='';
+    errs.forEach(function(t){ var d=document.createElement('div'); d.className='err'; d.textContent=t; box.appendChild(d); });
+  }
+
+  function render(res){
+    // summary stats
+    var lvl=Math.round(res.level*100);
+    var s=$('summary'); s.innerHTML='';
+    function stat(k,v){ var d=document.createElement('div'); d.className='stat';
+      d.innerHTML='<div class="k">'+k+'</div><div class="v">'+v+'</div>'; s.appendChild(d); }
+    stat('Pooled proportion', pct(res.pooled.est));
+    stat(lvl+'% CI', pct(res.pooled.lo)+' – '+pct(res.pooled.hi));
+    stat('I²', isFinite(res.I2)? res.I2.toFixed(1)+'%' : '—');
+    stat('τ² (analysis scale)', fmt3(res.tau2));
+
+    // per-study table
+    var tb=$('results').querySelector('tbody'); tb.innerHTML=''; lastRows=[];
+    res.studies.forEach(function(r){
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td class="measure">'+escapeHtml(r.label)+(r.corrected?' <span class="muted">(+0.5)</span>':'')+'</td>'+
+        '<td>'+r.xi+' / '+r.ni+'</td>'+
+        '<td>'+pct(r.est)+'</td>'+
+        '<td>'+pct(r.lo)+' – '+pct(r.hi)+'</td>'+
+        '<td>'+r.weightPct.toFixed(1)+'%</td>';
+      tb.appendChild(tr);
+      lastRows.push([r.label, r.xi, r.ni, (100*r.est).toFixed(2), (100*r.lo).toFixed(2), (100*r.hi).toFixed(2), r.weightPct.toFixed(2)]);
+    });
+
+    // warnings
+    var w=$('warns'); w.innerHTML='';
+    (res.warnings||[]).forEach(function(t){ var d=document.createElement('div'); d.className='warn'; d.textContent=t; w.appendChild(d); });
+
+    drawForest(res);
+  }
+
+  function drawForest(res){
+    var svg=$('forest'), cap=$('figcap');
+    var studies=res.studies.map(function(r){ return {label:r.label, est:r.est, lo:r.lo, hi:r.hi, weight:r.weight}; });
+    var tfName=res.transform==='ft'?'Freeman-Tukey double arcsine':'logit';
+    var opts={
+      log:false, null:null, measure:'proportion',
+      pooled:{est:res.pooled.est, lo:res.pooled.lo, hi:res.pooled.hi},
+      pooledLabel:'Pooled · DL random-effects',
+      claim:'Random-effects pooled proportion',
+      estimand:'Single-proportion meta-analysis ('+tfName+' transform)'
+    };
+    try {
+      window.ChartKit.renderForest(svg, studies, opts);
+      cap.textContent='Boxes are study proportions sized by random-effects weight; the diamond is the pooled proportion ('+pct(res.pooled.est)+'). No null line is shown — a single proportion has no meaningful null.';
+    } catch(e){ cap.textContent='Forest plot unavailable: '+e.message; }
+  }
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  $('run').addEventListener('click', run);
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="tf"]'), function(r){ r.addEventListener('change', run); });
+  $('conf').addEventListener('change', run);
+  $('copy').addEventListener('click', function(){
+    var tsv='label\tevents\ttotal\tprop_pct\tci_lo_pct\tci_hi_pct\tweight_pct\n'+lastRows.map(function(r){return r.join('\t');}).join('\n');
+    if(navigator.clipboard) navigator.clipboard.writeText(tsv);
+    this.textContent='Copied!'; var b=this; setTimeout(function(){b.textContent='Copy as TSV';},1200);
+  });
+  $('ex').addEventListener('click', function(){ $('data').value=EXAMPLE; run(); });
+
+  // initial load
+  $('data').value=EXAMPLE; setHint(); run();
+})();
+</script>
+</body>
+</html>
